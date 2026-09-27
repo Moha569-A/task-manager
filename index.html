@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpendWisewise — Spending Analyzer</title>
+<script src="/static/chart.umd.js"></script>
+<style>
+:root{
+  --bg:#0f172a; --panel:#1e293b; --panel2:#273449; --border:#334155;
+  --text:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --green:#4ade80;
+  --red:#f87171; --amber:#fbbf24; --radius:14px;
+  --row-hover:#22304a55; --row-border:#22304a; --btn-text:#082f49;
+}
+body.light{
+  --bg:#f1f5f9; --panel:#ffffff; --panel2:#f1f5f9; --border:#cbd5e1;
+  --text:#0f172a; --muted:#64748b; --accent:#0284c7; --green:#16a34a;
+  --red:#dc2626; --amber:#d97706;
+  --row-hover:#e2e8f099; --row-border:#e2e8f0; --btn-text:#ffffff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background .25s,color .25s}
+a{color:var(--accent)}
+button{cursor:pointer;font-family:inherit}
+input,select,button{font-size:14px}
+input,select{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;width:100%}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+input[type=color]{padding:2px;height:38px;width:52px}
+label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
+.btn{background:var(--accent);color:var(--btn-text);border:none;padding:10px 16px;border-radius:8px;font-weight:600}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+.btn.danger{background:transparent;color:var(--red);border:1px solid var(--red)}
+.btn.sm{padding:5px 10px;font-size:12px}
+.hidden{display:none!important}
+
+/* auth */
+#authScreen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.auth-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:36px;width:380px;max-width:100%}
+.auth-card h1{font-size:26px;margin-bottom:4px}
+.auth-card .sub{color:var(--muted);font-size:13px;margin-bottom:22px}
+.auth-card .field{margin-bottom:14px}
+.auth-toggle{margin-top:16px;font-size:13px;color:var(--muted);text-align:center}
+.auth-toggle span{color:var(--accent);cursor:pointer;font-weight:600}
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.logo .mark{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;font-size:20px}
+
+/* layout */
+header{display:flex;align-items:center;gap:14px;padding:14px 22px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;flex-wrap:wrap}
+header .logo{margin:0}
+header .spacer{flex:1}
+header .user{font-size:13px;color:var(--muted)}
+nav{display:flex;gap:4px;padding:10px 22px 0;flex-wrap:wrap;background:var(--bg)}
+nav button{background:transparent;border:none;color:var(--muted);padding:10px 14px;border-radius:8px 8px 0 0;font-size:14px;font-weight:600;border-bottom:2px solid transparent}
+nav button.active{color:var(--accent);border-bottom-color:var(--accent)}
+nav button:hover{color:var(--text)}
+main{padding:22px;max-width:1200px;margin:0 auto}
+
+.grid{display:grid;gap:16px}
+.g4{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
+.card h3{font-size:14px;color:var(--muted);font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+.stat .big{font-size:26px;font-weight:700}
+.stat .small{font-size:12px;color:var(--muted);margin-top:4px}
+.pos{color:var(--green)} .neg{color:var(--red)} .warn{color:var(--amber)}
+
+.chart-wrap{position:relative;height:280px}
+.chart-wrap.tall{height:320px}
+
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{color:var(--muted);text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;border-bottom:1px solid var(--border)}
+td{padding:9px 10px;border-bottom:1px solid var(--row-border)}
+tr:hover td{background:var(--row-hover)}
+.pill{display:inline-block;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:600}
+.amount{font-variant-numeric:tabular-nums;font-weight:600;text-align:right}
+th.r,td.r{text-align:right}
+
+.form-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.form-row .field{flex:1;min-width:120px}
+.progress{height:8px;background:var(--panel2);border-radius:99px;overflow:hidden;margin-top:8px}
+.progress>div{height:100%;border-radius:99px;transition:width .4s}
+
+.rec{border-left:4px solid var(--accent);background:var(--panel2);padding:12px 14px;border-radius:8px;margin-bottom:10px}
+.rec.warning{border-color:var(--amber)} .rec.success{border-color:var(--green)}
+.rec b{display:block;margin-bottom:3px;font-size:14px}
+.rec p{font-size:13px;color:var(--muted);line-height:1.5}
+
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0ea5e9;color:#082f49;font-weight:600;padding:12px 22px;border-radius:10px;z-index:99;box-shadow:0 8px 30px #0008;transition:opacity .3s;opacity:0;pointer-events:none}
+#toast.show{opacity:1}
+#toast.err{background:#f87171;color:#450a0a}
+
+.empty{color:var(--muted);text-align:center;padding:30px;font-size:14px}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px}
+.section-head h2{font-size:20px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.filters input,.filters select{width:auto;min-width:130px}
+.goal-card{position:relative}
+.goal-actions{position:absolute;top:14px;right:14px;display:flex;gap:6px}
+.muted{color:var(--muted);font-size:13px}
+.dropzone{border:2px dashed var(--border);border-radius:12px;padding:26px;text-align:center;color:var(--muted);cursor:pointer;transition:border-color .2s}
+.dropzone:hover,.dropzone.drag{border-color:var(--accent);color:var(--text)}
+code{background:var(--panel2);padding:2px 6px;border-radius:6px;font-size:12px}
+@media(max-width:640px){main{padding:14px}.chart-wrap{height:230px}}
+</style>
+</head>
+<body>
+
+<!-- ======================= AUTH ======================= -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="logo"><div class="mark">💸</div><div><h1>SpendWise</h1></div></div>
+    <div class="sub">Track, analyze and predict your spending.</div>
+    <div class="field"><label>Username</label><input id="authUser" autocomplete="username" placeholder="e.g. ada"></div>
+    <div class="field"><label>Password</label><input id="authPass" type="password" autocomplete="current-password" placeholder="min 6 characters"></div>
+    <button class="btn" style="width:100%" id="authBtn" onclick="submitAuth()">Log in</button>
+    <div class="auth-toggle" id="authToggle">No account? <span onclick="toggleAuthMode()">Create one</span></div>
+  </div>
+</div>
+
+<!-- ======================= APP ======================= -->
+<div id="app" class="hidden">
+<header>
+  <div class="logo"><div class="mark">💸</div><b style="font-size:18px">SpendWise</b></div>
+  <div class="spacer"></div>
+  <span class="user" id="whoami"></span>
+  <button class="btn ghost sm" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+  <button class="btn ghost sm" onclick="openSettings()">⚙ Settings</button>
+  <button class="btn ghost sm" onclick="logout()">Log out</button>
+</header>
+
+<nav id="tabs">
+  <button data-tab="dashboard" class="active" onclick="showTab('dashboard')">Dashboard</button>
+  <button data-tab="transactions" onclick="showTab('transactions')">Transactions</button>
+  <button data-tab="categories" onclick="showTab('categories')">Categories & Budgets</button>
+  <button data-tab="recurring" onclick="showTab('recurring')">Recurring</button>
+  <button data-tab="goals" onclick="showTab('goals')">Goals</button>
+  <button data-tab="reports" onclick="showTab('reports')">Reports</button>
+  <button data-tab="insights" onclick="showTab('insights')">Insights</button>
+</nav>
+
+<main>
+<!-- ---------- DASHBOARD ---------- -->
+<section id="tab-dashboard">
+  <div class="grid g4" style="margin-bottom:16px">
+    <div class="card stat"><h3>Income (this month)</h3><div class="big pos" id="statIncome">—</div><div class="small" id="statMonth"></div></div>
+    <div class="card stat"><h3>Expenses (this month)</h3><div class="big neg" id="statExpense">—</div><div class="small" id="statProjection"></div></div>
+    <div class="card stat"><h3>Net this month</h3><div class="big" id="statNet">—</div><div class="small" id="statSavingsRate"></div></div>
+    <div class="card stat"><h3>All-time balance</h3><div class="big" id="statBalance">—</div><div class="small">income − expenses</div></div>
+  </div>
+  <div class="grid g2">
+    <div class="card"><h3>Spending by category (this month)</h3><div class="chart-wrap"><canvas id="pieChart"></canvas></div></div>
+    <div class="card"><h3>Income vs expenses (12 months)</h3><div class="chart-wrap"><canvas id="barChart"></canvas></div></div>
+    <div class="card"><h3>Budget usage (this month)</h3><div id="budgetBars"><div class="empty">No budgets set</div></div></div>
+    <div class="card"><h3>Recent transactions</h3><div id="recentTx"><div class="empty">No transactions yet</div></div></div>
+  </div>
+</section>
+
+<!-- ---------- TRANSACTIONS ---------- -->
+<section id="tab-transactions" class="hidden">
+  <div class="card" style="margin-bottom:16px">
+    <h3>Add transaction</h3>
+    <div class="form-row">
+      <div class="field" style="max-width:120px"><label>Type</label>
+        <select id="txType" onchange="document.getElementById('txCatField').style.display=this.value==='expense'?'':'none'">
+          <option value="expense">Expense</option><option value="income">Income</option>
+        </select></div>
+      <div class="field" style="max-width:140px"><label>Amount</label><input id="txAmount" type="number" step="0.01" min="0" placeholder="0.00"></div>
+      <div class="field" style="max-width:110px"><label>Currency</label><select id="txCcy"></select></div>
+      <div class="field"><label>Description</label><input id="txDesc" placeholder="e.g. Uber to airport, Netflix, salary…"></div>
+      <div class="field" id="txCatField" style="max-width:190px"><label>Category (blank = auto)</label><select id="txCat"><option value="">✨ Auto-detect</option></select></div>
+      <div class="field" style="max-width:160px"><label>Date</label><input id="txDate" type="date"></div>
+      <button class="btn" onclick="addTransaction()">Add</button>
+    </div>
+    <div class="muted" style="margin-top:8px">✨ Leave category blank and SpendWise auto-categorizes from the description.</div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <h3>Import from CSV</h3>
+    <div class="dropzone" id="dropzone" onclick="document.getElementById('csvFile').click()">
+      Drop a CSV here or click to browse.<br>
+      <span style="font-size:12px">Needs <code>date</code> and <code>amount</code> columns; <code>description</code>, <code>type</code>, <code>category</code> optional. Unknown expenses are auto-categorized.</span>
+    </div>
+    <input type="file" id="csvFile" accept=".csv" class="hidden" onchange="importCSV(this.files[0])">
+    <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span class="muted" style="font-size:12px">File amounts are in:</span>
+      <select id="csvCcy" style="width:auto"></select>
+      <button class="btn ghost sm" onclick="window.location='/api/export/csv'">⬇ Export all transactions (CSV)</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-head"><h2>Transactions</h2><span class="muted" id="txCount"></span></div>
+    <div class="filters">
+      <input id="fSearch" placeholder="Search description…" oninput="debouncedLoadTx()">
+      <select id="fType" onchange="loadTransactions()"><option value="">All types</option><option value="expense">Expenses</option><option value="income">Income</option></select>
+      <select id="fCat" onchange="loadTransactions()"><option value="">All categories</option></select>
+      <input id="fMonth" type="month" onchange="loadTransactions()">
+      <button class="btn ghost sm" onclick="clearFilters()">Clear</button>
+    </div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="r">Amount</th><th></th></tr></thead>
+      <tbody id="txBody"></tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ---------- CATEGORIES ---------- -->
+<section id="tab-categories" class="hidden">
+  <div class="card" style="margin-bottom:16px">
+    <h3>Add category</h3>
+    <div class="form-row">
+      <div class="field"><label>Name</label><input id="catName" placeholder="e.g. Pets"></div>
+      <div class="field" style="max-width:80px"><label>Color</label><input id="catColor" type="color" value="#38bdf8"></div>
+      <div class="field" style="max-width:170px"><label>Monthly budget (optional)</label><input id="catBudget" type="number" min="0" step="0.01" placeholder="0"></div>
+      <button class="btn" onclick="addCategory()">Add</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="section-head"><h2>Categories & budgets</h2></div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th>Category</th><th class="r">Monthly budget</th><th class="r">Spent this month</th><th style="width:200px">Usage</th><th></th></tr></thead>
+      <tbody id="catBody"></tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ---------- RECURRING ---------- -->
+<section id="tab-recurring" class="hidden">
+  <div class="card" style="margin-bottom:16px">
+    <h3>Add recurring item</h3>
+    <div class="form-row">
+      <div class="field" style="max-width:120px"><label>Type</label><select id="recType"><option value="expense">Expense</option><option value="income">Income</option></select></div>
+      <div class="field" style="max-width:140px"><label>Amount</label><input id="recAmount" type="number" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="field" style="max-width:110px"><label>Currency</label><select id="recCcy"></select></div>
+      <div class="field"><label>Description</label><input id="recDesc" placeholder="e.g. Rent, Netflix, Salary"></div>
+      <div class="field" style="max-width:140px"><label>Frequency</label><select id="recFreq"><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="daily">Daily</option><option value="yearly">Yearly</option></select></div>
+      <div class="field" style="max-width:170px"><label>Next / first date</label><input id="recDate" type="date"></div>
+      <div class="field" style="max-width:180px"><label>Category</label><select id="recCat"><option value="">✨ Auto</option></select></div>
+      <button class="btn" onclick="addRecurring()">Add</button>
+    </div>
+    <div class="muted" style="margin-top:8px">Due recurring items are automatically posted as transactions each time you open the app.</div>
+  </div>
+  <div class="card">
+    <div class="section-head"><h2>Recurring items</h2><span class="muted" id="recMonthly"></span></div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th>Description</th><th>Category</th><th>Frequency</th><th>Next date</th><th class="r">Amount</th><th>Status</th><th></th></tr></thead>
+      <tbody id="recBody"></tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ---------- GOALS ---------- -->
+<section id="tab-goals" class="hidden">
+  <div class="card" style="margin-bottom:16px">
+    <h3>Add financial goal</h3>
+    <div class="form-row">
+      <div class="field"><label>Goal name</label><input id="goalName" placeholder="e.g. Emergency fund, New laptop"></div>
+      <div class="field" style="max-width:150px"><label>Target amount</label><input id="goalTarget" type="number" min="0" step="0.01"></div>
+      <div class="field" style="max-width:150px"><label>Already saved</label><input id="goalSaved" type="number" min="0" step="0.01" placeholder="0"></div>
+      <div class="field" style="max-width:170px"><label>Deadline (optional)</label><input id="goalDeadline" type="date"></div>
+      <button class="btn" onclick="addGoal()">Add</button>
+    </div>
+  </div>
+  <div class="grid g2" id="goalList"></div>
+</section>
+
+<!-- ---------- REPORTS ---------- -->
+<section id="tab-reports" class="hidden">
+  <div class="section-head">
+    <h2>Monthly report</h2>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="reportMonth" style="width:auto" onchange="loadReport()"></select>
+      <button class="btn" onclick="exportPDF()">📄 Export PDF</button>
+    </div>
+  </div>
+  <div class="grid g4" style="margin-bottom:16px">
+    <div class="card stat"><h3>Income</h3><div class="big pos" id="repIncome">—</div></div>
+    <div class="card stat"><h3>Expenses</h3><div class="big neg" id="repExpense">—</div><div class="small" id="repChange"></div></div>
+    <div class="card stat"><h3>Net</h3><div class="big" id="repNet">—</div><div class="small" id="repSavings"></div></div>
+    <div class="card stat"><h3>Transactions</h3><div class="big" id="repCount">—</div></div>
+  </div>
+  <div class="grid g2">
+    <div class="card"><h3>Daily spending</h3><div class="chart-wrap"><canvas id="dailyChart"></canvas></div></div>
+    <div class="card"><h3>Category breakdown</h3><div class="chart-wrap"><canvas id="repPie"></canvas></div></div>
+    <div class="card"><h3>Category detail</h3><div style="overflow-x:auto"><table><thead><tr><th>Category</th><th class="r">Spent</th><th class="r">Budget</th><th class="r">% of total</th></tr></thead><tbody id="repCatBody"></tbody></table></div></div>
+    <div class="card"><h3>Top 5 expenses</h3><div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="r">Amount</th></tr></thead><tbody id="repTopBody"></tbody></table></div></div>
+  </div>
+</section>
+
+<!-- ---------- INSIGHTS ---------- -->
+<section id="tab-insights" class="hidden">
+  <div class="grid g4" style="margin-bottom:16px">
+    <div class="card stat"><h3>Avg monthly spend</h3><div class="big" id="insAvg">—</div><div class="small" id="insHist"></div></div>
+    <div class="card stat"><h3>This month projection</h3><div class="big warn" id="insProj">—</div><div class="small">at current daily run-rate</div></div>
+    <div class="card stat"><h3>Next month forecast</h3><div class="big" id="insNext">—</div><div class="small" id="insTrend"></div></div>
+  </div>
+  <div class="grid g2" style="margin-bottom:16px">
+    <div class="card"><h3>Spending forecast (next 3 months)</h3><div class="chart-wrap tall"><canvas id="forecastChart"></canvas></div></div>
+    <div class="card"><h3>Predicted spend by category (next month)</h3><div class="chart-wrap tall"><canvas id="catForecastChart"></canvas></div></div>
+  </div>
+  <div class="card">
+    <h3>Budget recommendations</h3>
+    <div id="recList"><div class="empty">Loading…</div></div>
+  </div>
+</section>
+</main>
+</div>
+
+<!-- settings modal -->
+<div id="settingsModal" class="hidden" style="position:fixed;inset:0;background:#000a;z-index:50;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div class="card" style="width:400px;max-width:100%">
+    <div class="section-head"><h2>Settings</h2><button class="btn ghost sm" onclick="document.getElementById('settingsModal').classList.add('hidden')">✕</button></div>
+    <div class="field" style="margin-bottom:6px"><label>Base currency</label><select id="setCurrency"></select></div>
+    <div style="margin-bottom:12px;font-size:12px" class="muted">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:inherit;font-size:12px">
+        <input type="checkbox" id="setConvert" checked style="width:auto"> Convert existing amounts to the new currency
+      </label>
+      <span id="rateInfo"></span>
+    </div>
+    <div class="field" style="margin-bottom:16px"><label>Expected monthly income (used in recommendations)</label><input id="setIncome" type="number" min="0" step="0.01"></div>
+    <button class="btn" style="width:100%" onclick="saveSettings()">Save</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let CUR = '$';
+let BASE_CCY = 'USD';
+let CURRENCIES = [];
+let RATES = {};
+let authMode = 'login';
+let categories = [];
+let charts = {};
+
+/* ---------------- theme ---------------- */
+function applyTheme(mode){
+  document.body.classList.toggle('light', mode==='light');
+  const btn = document.getElementById('themeBtn');
+  if(btn) btn.textContent = mode==='light' ? '☀️' : '🌙';
+  Chart.defaults.color = mode==='light' ? '#64748b' : '#94a3b8';
+  Chart.defaults.borderColor = mode==='light' ? '#e2e8f0' : '#334155';
+  localStorage.setItem('spendwise-theme', mode);
+}
+function toggleTheme(){
+  const next = document.body.classList.contains('light') ? 'dark' : 'light';
+  applyTheme(next);
+  // re-render charts with new axis colors
+  refreshCurrentTab();
+}
+applyTheme(localStorage.getItem('spendwise-theme') || 'dark');
+
+const $ = id => document.getElementById(id);
+const fmt = n => CUR + Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmt0 = n => CUR + Number(n||0).toLocaleString(undefined,{maximumFractionDigits:0});
+const esc = s => (s??'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg, err=false){
+  const t = $('toast'); t.textContent = msg; t.className = 'show' + (err?' err':'');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.className='', 3000);
+}
+
+async function api(path, opts={}){
+  if(opts.body && !(opts.body instanceof FormData)){
+    opts.headers = {'Content-Type':'application/json', ...(opts.headers||{})};
+    opts.body = JSON.stringify(opts.body);
+  }
+  const res = await fetch(path, {credentials:'same-origin', ...opts});
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok){ throw new Error(data.error || ('Request failed ('+res.status+')')); }
+  return data;
+}
+
+/* ---------------- auth ---------------- */
+function toggleAuthMode(){
+  authMode = authMode==='login' ? 'register' : 'login';
+  $('authBtn').textContent = authMode==='login' ? 'Log in' : 'Create account';
+  $('authToggle').innerHTML = authMode==='login'
+    ? 'No account? <span onclick="toggleAuthMode()">Create one</span>'
+    : 'Have an account? <span onclick="toggleAuthMode()">Log in</span>';
+}
+async function submitAuth(){
+  try{
+    await api('/api/'+authMode, {method:'POST', body:{username:$('authUser').value, password:$('authPass').value}});
+    await boot();
+  }catch(e){ toast(e.message, true); }
+}
+$('authPass').addEventListener('keydown', e=>{ if(e.key==='Enter') submitAuth(); });
+async function logout(){ await api('/api/logout',{method:'POST'}); location.reload(); }
+
+async function loadCurrencies(){
+  try{
+    const d = await api('/api/currencies');
+    CURRENCIES = d.currencies; RATES = d.rates;
+    const opts = CURRENCIES.map(c=>`<option value="${c.code}">${c.code} — ${c.name} (${c.symbol})</option>`).join('');
+    $('setCurrency').innerHTML = opts;
+    const short = CURRENCIES.map(c=>`<option value="${c.code}">${c.code}</option>`).join('');
+    $('txCcy').innerHTML = short; $('recCcy').innerHTML = short; $('csvCcy').innerHTML = short;
+    $('rateInfo').textContent = d.source==='live' ? 'Live exchange rates (updated ≤12h).' : 'Offline: using approximate built-in rates.';
+  }catch(_){}
+}
+function setCcyDefaults(){
+  $('setCurrency').value = BASE_CCY;
+  $('txCcy').value = BASE_CCY; $('recCcy').value = BASE_CCY; $('csvCcy').value = BASE_CCY;
+}
+
+async function boot(){
+  const me = await api('/api/me');
+  if(!me.authenticated){ $('authScreen').classList.remove('hidden'); $('app').classList.add('hidden'); return; }
+  CUR = me.currency_symbol || '$';
+  BASE_CCY = me.currency_code || 'USD';
+  $('whoami').textContent = '👤 ' + me.username;
+  $('setIncome').value = me.monthly_income || '';
+  $('authScreen').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('txDate').value = new Date().toISOString().slice(0,10);
+  $('recDate').value = new Date().toISOString().slice(0,10);
+  await loadCurrencies();
+  setCcyDefaults();
+  await loadCategories();
+  await Promise.all([loadDashboard(), loadTransactions()]);
+}
+
+function openSettings(){ $('settingsModal').classList.remove('hidden'); }
+async function saveSettings(){
+  try{
+    const newCode = $('setCurrency').value;
+    const changing = newCode !== BASE_CCY;
+    if(changing && $('setConvert').checked &&
+       !confirm(`Convert all existing amounts from ${BASE_CCY} to ${newCode} at the current rate?`)) return;
+    await api('/api/settings',{method:'PUT', body:{
+      currency_code:newCode, convert_existing:$('setConvert').checked, monthly_income:$('setIncome').value||0}});
+    const me = await api('/api/me');
+    CUR = me.currency_symbol; BASE_CCY = me.currency_code;
+    $('setIncome').value = me.monthly_income || '';
+    setCcyDefaults();
+    $('settingsModal').classList.add('hidden');
+    toast('Settings saved'); refreshCurrentTab(); loadDashboard();
+  }catch(e){ toast(e.message,true); }
+}
+
+function exportPDF(){
+  const m = $('reportMonth').value || new Date().toISOString().slice(0,7);
+  window.location = '/api/reports/monthly.pdf?month=' + m;
+}
+
+/* ---------------- tabs ---------------- */
+let currentTab = 'dashboard';
+function showTab(name){
+  currentTab = name;
+  document.querySelectorAll('main section').forEach(s=>s.classList.add('hidden'));
+  $('tab-'+name).classList.remove('hidden');
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  refreshCurrentTab();
+}
+function refreshCurrentTab(){
+  ({dashboard:loadDashboard, transactions:loadTransactions, categories:loadCategories,
+    recurring:loadRecurring, goals:loadGoals, reports:initReports, insights:loadInsights}[currentTab]||(()=>{}))();
+}
+
+function makeChart(id, config){
+  if(charts[id]) charts[id].destroy();
+  charts[id] = new Chart($(id), config);
+}
+applyTheme(localStorage.getItem('spendwise-theme') || 'dark'); // ensure chart defaults match theme
+
+/* ---------------- dashboard ---------------- */
+async function loadDashboard(){
+  const s = await api('/api/analytics/summary');
+  $('statIncome').textContent = fmt(s.income);
+  $('statExpense').textContent = fmt(s.expense);
+  $('statMonth').textContent = s.month;
+  $('statNet').textContent = fmt(s.net);
+  $('statNet').className = 'big ' + (s.net>=0?'pos':'neg');
+  $('statBalance').textContent = fmt(s.balance);
+  $('statBalance').className = 'big ' + (s.balance>=0?'pos':'neg');
+  $('statSavingsRate').textContent = s.savings_rate!==null ? `savings rate: ${s.savings_rate}%` : '';
+
+  try{
+    const p = await api('/api/analytics/predictions');
+    $('statProjection').textContent = p.current_month_projection ? `projected: ${fmt0(p.current_month_projection)}` : '';
+  }catch(_){}
+
+  // pie
+  const cats = s.by_category;
+  makeChart('pieChart', {
+    type:'doughnut',
+    data:{labels:cats.map(c=>c.name), datasets:[{data:cats.map(c=>c.spent), backgroundColor:cats.map(c=>c.color), borderWidth:0}]},
+    options:{plugins:{legend:{position:'right'}}, cutout:'60%'}
+  });
+
+  // bar
+  const ms = s.monthly_series;
+  makeChart('barChart', {
+    type:'bar',
+    data:{labels:ms.map(m=>m.month), datasets:[
+      {label:'Income', data:ms.map(m=>m.income), backgroundColor:'#4ade8099', borderRadius:4},
+      {label:'Expenses', data:ms.map(m=>m.expense), backgroundColor:'#f8717199', borderRadius:4},
+    ]},
+    options:{scales:{x:{grid:{display:false}}, y:{beginAtZero:true}}}
+  });
+
+  // budget bars
+  const budgeted = cats.filter(c=>c.budget>0);
+  const allBudgeted = categories.filter(c=>c.budget>0).map(c=>{
+    const spent = (cats.find(x=>x.name===c.name)||{}).spent || 0;
+    return {...c, spent};
+  });
+  $('budgetBars').innerHTML = allBudgeted.length ? allBudgeted.map(c=>{
+    const pct = Math.min(100, 100*c.spent/c.budget);
+    const color = pct>=100?'#f87171':pct>=80?'#fbbf24':'#4ade80';
+    return `<div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span><span class="pill" style="background:${c.color}33;color:${c.color}">${esc(c.name)}</span></span>
+        <span class="muted">${fmt0(c.spent)} / ${fmt0(c.budget)}</span></div>
+      <div class="progress"><div style="width:${pct}%;background:${color}"></div></div></div>`;
+  }).join('') : '<div class="empty">No budgets set — add them in Categories & Budgets</div>';
+
+  // recent
+  const tx = await api('/api/transactions');
+  $('recentTx').innerHTML = tx.length ? '<table><tbody>'+tx.slice(0,7).map(t=>`
+    <tr><td class="muted" style="white-space:nowrap">${t.date}</td>
+    <td>${esc(t.description)||'<span class="muted">—</span>'}</td>
+    <td class="amount ${t.type==='income'?'pos':'neg'}">${t.type==='income'?'+':'−'}${fmt(t.amount)}</td></tr>`).join('')+'</tbody></table>'
+    : '<div class="empty">No transactions yet</div>';
+}
+
+/* ---------------- categories ---------------- */
+async function loadCategories(){
+  categories = await api('/api/categories');
+  const opts = categories.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  $('txCat').innerHTML = '<option value="">✨ Auto-detect</option>'+opts;
+  $('recCat').innerHTML = '<option value="">✨ Auto</option>'+opts;
+  $('fCat').innerHTML = '<option value="">All categories</option>'+opts;
+  $('catBody').innerHTML = categories.map(c=>{
+    const pct = c.budget>0 ? Math.min(100, 100*c.spent_this_month/c.budget) : 0;
+    const color = pct>=100?'#f87171':pct>=80?'#fbbf24':'#4ade80';
+    return `<tr>
+      <td><span class="pill" style="background:${c.color}33;color:${c.color}">● ${esc(c.name)}</span></td>
+      <td class="amount">${c.budget>0?fmt(c.budget):'<span class="muted">—</span>'}</td>
+      <td class="amount">${fmt(c.spent_this_month)}</td>
+      <td>${c.budget>0?`<div class="progress"><div style="width:${pct}%;background:${color}"></div></div>`:'<span class="muted">no budget</span>'}</td>
+      <td style="white-space:nowrap;text-align:right">
+        <button class="btn ghost sm" onclick="editCategory(${c.id})">Edit</button>
+        <button class="btn danger sm" onclick="delCategory(${c.id})">✕</button></td></tr>`;
+  }).join('');
+}
+async function addCategory(){
+  try{
+    await api('/api/categories',{method:'POST', body:{name:$('catName').value, color:$('catColor').value, budget:$('catBudget').value}});
+    $('catName').value=''; $('catBudget').value='';
+    toast('Category added'); loadCategories();
+  }catch(e){ toast(e.message,true); }
+}
+async function editCategory(id){
+  const c = categories.find(x=>x.id===id);
+  const name = prompt('Category name:', c.name); if(name===null) return;
+  const budget = prompt('Monthly budget (0 = none):', c.budget||0); if(budget===null) return;
+  try{ await api('/api/categories/'+id,{method:'PUT', body:{name, budget}}); toast('Updated'); loadCategories(); }
+  catch(e){ toast(e.message,true); }
+}
+async function delCategory(id){
+  if(!confirm('Delete this category? Its transactions keep their history but lose the category.')) return;
+  await api('/api/categories/'+id,{method:'DELETE'}); toast('Deleted'); loadCategories();
+}
+
+/* ---------------- transactions ---------------- */
+let txTimer;
+const debouncedLoadTx = ()=>{ clearTimeout(txTimer); txTimer=setTimeout(loadTransactions, 300); };
+function clearFilters(){ $('fSearch').value=''; $('fType').value=''; $('fCat').value=''; $('fMonth').value=''; loadTransactions(); }
+
+async function loadTransactions(){
+  const p = new URLSearchParams();
+  if($('fSearch').value) p.set('search', $('fSearch').value);
+  if($('fType').value) p.set('type', $('fType').value);
+  if($('fCat').value) p.set('category_id', $('fCat').value);
+  if($('fMonth').value) p.set('month', $('fMonth').value);
+  const tx = await api('/api/transactions?'+p);
+  $('txCount').textContent = tx.length + ' shown';
+  $('txBody').innerHTML = tx.length ? tx.map(t=>`
+    <tr><td style="white-space:nowrap">${t.date}</td>
+    <td>${esc(t.description)||'<span class="muted">—</span>'}</td>
+    <td>${t.category_name?`<span class="pill" style="background:${t.category_color}33;color:${t.category_color}">${esc(t.category_name)}</span>`:(t.type==='income'?'<span class="pill" style="background:#4ade8033;color:#4ade80">income</span>':'<span class="muted">—</span>')}</td>
+    <td class="amount ${t.type==='income'?'pos':'neg'}">${t.type==='income'?'+':'−'}${fmt(t.amount)}${t.orig_currency&&t.orig_currency!==BASE_CCY?`<div class="muted" style="font-size:11px;font-weight:400">${t.orig_currency} ${Number(t.orig_amount).toLocaleString(undefined,{maximumFractionDigits:2})}</div>`:''}</td>
+    <td style="white-space:nowrap;text-align:right">
+      <button class="btn ghost sm" onclick="editTx(${t.id},${t.amount},'${esc(t.description).replace(/'/g,"\\'")}','${t.category_id||''}')">Edit</button>
+      <button class="btn danger sm" onclick="delTx(${t.id})">✕</button></td></tr>`).join('')
+    : '<tr><td colspan="5" class="empty">No transactions match</td></tr>';
+}
+async function addTransaction(){
+  try{
+    await api('/api/transactions',{method:'POST', body:{
+      type:$('txType').value, amount:$('txAmount').value, description:$('txDesc').value,
+      category_id:$('txCat').value||null, date:$('txDate').value, currency:$('txCcy').value}});
+    $('txAmount').value=''; $('txDesc').value=''; $('txCat').value='';
+    toast('Transaction added'); loadTransactions(); loadCategories();
+  }catch(e){ toast(e.message,true); }
+}
+async function editTx(id, amount, desc, catId){
+  const a = prompt('Amount:', amount); if(a===null) return;
+  const d = prompt('Description:', desc); if(d===null) return;
+  let body = {amount:a, description:d};
+  if(categories.length && confirm('Change category too? (Cancel = keep current)')){
+    const list = categories.map((c,i)=>`${i+1}. ${c.name}`).join('\n');
+    const pick = prompt('Pick category number:\n'+list);
+    const idx = parseInt(pick)-1;
+    if(!isNaN(idx) && categories[idx]) body.category_id = categories[idx].id;
+  }
+  try{ await api('/api/transactions/'+id,{method:'PUT', body}); toast('Updated'); loadTransactions(); }
+  catch(e){ toast(e.message,true); }
+}
+async function delTx(id){
+  await api('/api/transactions/'+id,{method:'DELETE'}); toast('Deleted'); loadTransactions();
+}
+
+/* CSV */
+const dz = $('dropzone');
+['dragover','dragenter'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('drag');}));
+dz.addEventListener('drop', e=>{ if(e.dataTransfer.files[0]) importCSV(e.dataTransfer.files[0]); });
+async function importCSV(file){
+  if(!file) return;
+  const fd = new FormData(); fd.append('file', file);
+  fd.append('currency', $('csvCcy').value || BASE_CCY);
+  try{
+    const r = await api('/api/import/csv',{method:'POST', body:fd});
+    toast(`Imported ${r.imported} rows (${r.auto_categorized} auto-categorized, ${r.skipped} skipped)`);
+    loadTransactions(); loadCategories();
+  }catch(e){ toast(e.message,true); }
+  $('csvFile').value='';
+}
+
+/* ---------------- recurring ---------------- */
+async function loadRecurring(){
+  const rows = await api('/api/recurring');
+  const toBase = (amt,ccy)=>{ if(!ccy||ccy===BASE_CCY||!RATES[ccy]||!RATES[BASE_CCY]) return amt; return amt/RATES[ccy]*RATES[BASE_CCY]; };
+  const monthly = rows.filter(r=>r.active&&r.type==='expense').reduce((s,r)=>s+({daily:30,weekly:4.33,monthly:1,yearly:1/12}[r.frequency])*toBase(r.amount,r.currency),0);
+  $('recMonthly').textContent = rows.length ? `≈ ${fmt0(monthly)}/month in recurring expenses` : '';
+  $('recBody').innerHTML = rows.length ? rows.map(r=>`
+    <tr style="${r.active?'':'opacity:.45'}">
+      <td>${esc(r.description)||'—'}</td>
+      <td>${r.category_name?`<span class="pill" style="background:${r.category_color}33;color:${r.category_color}">${esc(r.category_name)}</span>`:'<span class="muted">—</span>'}</td>
+      <td>${r.frequency}</td><td>${r.next_date}</td>
+      <td class="amount ${r.type==='income'?'pos':'neg'}">${r.type==='income'?'+':'−'}${r.currency&&r.currency!==BASE_CCY?r.currency+' '+Number(r.amount).toLocaleString(undefined,{minimumFractionDigits:2}):fmt(r.amount)}</td>
+      <td><button class="btn ghost sm" onclick="toggleRec(${r.id},${r.active?0:1})">${r.active?'Pause':'Resume'}</button></td>
+      <td style="text-align:right"><button class="btn danger sm" onclick="delRec(${r.id})">✕</button></td></tr>`).join('')
+    : '<tr><td colspan="7" class="empty">No recurring items yet</td></tr>';
+}
+async function addRecurring(){
+  try{
+    await api('/api/recurring',{method:'POST', body:{
+      type:$('recType').value, amount:$('recAmount').value, description:$('recDesc').value,
+      frequency:$('recFreq').value, next_date:$('recDate').value, category_id:$('recCat').value||null,
+      currency:$('recCcy').value}});
+    $('recAmount').value=''; $('recDesc').value='';
+    toast('Recurring item added'); loadRecurring();
+  }catch(e){ toast(e.message,true); }
+}
+async function toggleRec(id, active){ await api('/api/recurring/'+id,{method:'PUT', body:{active}}); loadRecurring(); }
+async function delRec(id){ if(confirm('Delete recurring item?')){ await api('/api/recurring/'+id,{method:'DELETE'}); loadRecurring(); } }
+
+/* ---------------- goals ---------------- */
+async function loadGoals(){
+  const goals = await api('/api/goals');
+  $('goalList').innerHTML = goals.length ? goals.map(g=>{
+    const pct = Math.min(100, g.progress_pct);
+    const done = g.saved_amount >= g.target_amount;
+    return `<div class="card goal-card">
+      <div class="goal-actions">
+        <button class="btn ghost sm" onclick="addToGoal(${g.id})">+ Add funds</button>
+        <button class="btn danger sm" onclick="delGoal(${g.id})">✕</button></div>
+      <h3>${done?'✅ ':''}${esc(g.name)}</h3>
+      <div style="font-size:22px;font-weight:700">${fmt(g.saved_amount)} <span class="muted" style="font-size:14px;font-weight:400">of ${fmt(g.target_amount)}</span></div>
+      <div class="progress" style="height:10px"><div style="width:${pct}%;background:${done?'#4ade80':'#38bdf8'}"></div></div>
+      <div class="muted" style="margin-top:8px">${pct}% funded${g.deadline?` · deadline ${g.deadline}`:''}${g.monthly_needed!==undefined&&!done?` · save ${fmt0(g.monthly_needed)}/month to hit it`:''}</div>
+    </div>`;
+  }).join('') : '<div class="card"><div class="empty">No goals yet — create one above 🎯</div></div>';
+}
+async function addGoal(){
+  try{
+    await api('/api/goals',{method:'POST', body:{name:$('goalName').value, target_amount:$('goalTarget').value, saved_amount:$('goalSaved').value, deadline:$('goalDeadline').value}});
+    $('goalName').value=''; $('goalTarget').value=''; $('goalSaved').value=''; $('goalDeadline').value='';
+    toast('Goal added'); loadGoals();
+  }catch(e){ toast(e.message,true); }
+}
+async function addToGoal(id){
+  const amt = prompt('Amount to add to this goal:'); if(!amt) return;
+  try{ await api('/api/goals/'+id,{method:'PUT', body:{add_amount:amt}}); toast('Progress updated'); loadGoals(); }
+  catch(e){ toast(e.message,true); }
+}
+async function delGoal(id){ if(confirm('Delete goal?')){ await api('/api/goals/'+id,{method:'DELETE'}); loadGoals(); } }
+
+/* ---------------- reports ---------------- */
+async function initReports(){
+  const months = await api('/api/reports/months');
+  const cur = new Date().toISOString().slice(0,7);
+  const list = months.length ? months : [cur];
+  const sel = $('reportMonth');
+  const prevVal = sel.value;
+  sel.innerHTML = list.map(m=>`<option value="${m}">${m}</option>`).join('');
+  if(list.includes(prevVal)) sel.value = prevVal;
+  loadReport();
+}
+async function loadReport(){
+  const month = $('reportMonth').value || new Date().toISOString().slice(0,7);
+  const r = await api('/api/reports/monthly?month='+month);
+  $('repIncome').textContent = fmt(r.income);
+  $('repExpense').textContent = fmt(r.expense);
+  $('repNet').textContent = fmt(r.net);
+  $('repNet').className = 'big ' + (r.net>=0?'pos':'neg');
+  $('repCount').textContent = r.transaction_count;
+  $('repSavings').textContent = r.savings_rate!==null?`savings rate ${r.savings_rate}%`:'';
+  $('repChange').textContent = r.expense_change_pct!==null
+    ? `${r.expense_change_pct>0?'▲':'▼'} ${Math.abs(r.expense_change_pct)}% vs ${r.prev_month}` : '';
+  $('repChange').className = 'small ' + (r.expense_change_pct>0?'neg':'pos');
+
+  makeChart('dailyChart',{type:'bar',
+    data:{labels:r.daily_spending.map(d=>d.date.slice(8)), datasets:[{label:'Spent', data:r.daily_spending.map(d=>d.spent), backgroundColor:'#38bdf899', borderRadius:3}]},
+    options:{scales:{y:{beginAtZero:true}}, plugins:{legend:{display:false}}}});
+
+  makeChart('repPie',{type:'doughnut',
+    data:{labels:r.by_category.map(c=>c.name), datasets:[{data:r.by_category.map(c=>c.spent), backgroundColor:r.by_category.map(c=>c.color), borderWidth:0}]},
+    options:{plugins:{legend:{position:'right'}}, cutout:'60%'}});
+
+  $('repCatBody').innerHTML = r.by_category.length ? r.by_category.map(c=>`
+    <tr><td><span class="pill" style="background:${c.color}33;color:${c.color}">${esc(c.name)}</span></td>
+    <td class="amount">${fmt(c.spent)}</td>
+    <td class="amount">${c.budget>0?fmt(c.budget):'—'}</td>
+    <td class="amount">${r.expense?(100*c.spent/r.expense).toFixed(1):0}%</td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty">No expenses this month</td></tr>';
+
+  $('repTopBody').innerHTML = r.top_expenses.length ? r.top_expenses.map(t=>`
+    <tr><td style="white-space:nowrap">${t.date}</td><td>${esc(t.description)||'—'}</td>
+    <td class="muted">${esc(t.category)||'—'}</td><td class="amount neg">${fmt(t.amount)}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty">—</td></tr>';
+}
+
+/* ---------------- insights ---------------- */
+async function loadInsights(){
+  const [p, r, s] = await Promise.all([
+    api('/api/analytics/predictions'), api('/api/analytics/recommendations'), api('/api/analytics/summary')]);
+  $('insAvg').textContent = fmt0(p.avg_monthly_expense);
+  $('insHist').textContent = `based on ${p.history_months} month(s) of history`;
+  $('insProj').textContent = fmt0(p.current_month_projection);
+  $('insNext').textContent = fmt0(p.forecast_expenses[0]||0);
+  $('insTrend').textContent = 'trend: ' + p.trend;
+  $('insTrend').className = 'small ' + (p.trend==='increasing'?'neg':p.trend==='decreasing'?'pos':'');
+
+  const hist = s.monthly_series;
+  const labels = hist.map(m=>m.month).concat(p.forecast_months);
+  const histData = hist.map(m=>m.expense).concat(Array(3).fill(null));
+  const fData = Array(hist.length-1).fill(null).concat([hist[hist.length-1].expense], p.forecast_expenses);
+  makeChart('forecastChart',{type:'line',
+    data:{labels, datasets:[
+      {label:'Actual', data:histData, borderColor:'#38bdf8', backgroundColor:'#38bdf833', fill:true, tension:.3},
+      {label:'Forecast', data:fData, borderColor:'#fbbf24', borderDash:[6,5], tension:.3, pointStyle:'rectRot'}]},
+    options:{scales:{y:{beginAtZero:true}}}});
+
+  const cf = p.category_forecast.slice(0,8);
+  makeChart('catForecastChart',{type:'bar',
+    data:{labels:cf.map(c=>c.name), datasets:[{data:cf.map(c=>c.predicted), backgroundColor:cf.map(c=>c.color), borderRadius:5}]},
+    options:{indexAxis:'y', plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true}}}});
+
+  $('recList').innerHTML = r.recommendations.map(x=>`
+    <div class="rec ${x.type}"><b>${x.type==='warning'?'⚠️':x.type==='success'?'✅':'💡'} ${esc(x.title)}</b><p>${esc(x.detail)}</p></div>`).join('');
+  if(r.budget_suggestions.length){
+    $('recList').innerHTML += `<div style="margin-top:10px"><button class="btn" onclick='applyBudgets(${JSON.stringify(r.budget_suggestions)})'>Apply suggested budgets (${r.budget_suggestions.length})</button></div>`;
+  }
+}
+async function applyBudgets(suggestions){
+  for(const s of suggestions){
+    await api('/api/categories/'+s.category_id,{method:'PUT', body:{budget:s.suggested_budget}});
+  }
+  toast('Budgets applied'); loadInsights(); loadCategories();
+}
+
+boot();
+</script>
+</body>
+</html>
